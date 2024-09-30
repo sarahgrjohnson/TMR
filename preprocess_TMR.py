@@ -1,4 +1,3 @@
-
 """
 
 Max's movie preprocessing scripts (@maxne)
@@ -28,13 +27,13 @@ raw_dir = os.path.join(data_dir, 'RAW')
 prep_base_dir = os.path.join(data_dir, 'Prep')
 ttl_dir = os.path.join(data_dir, 'Beh')
 anat_dir = '/home/hbml/freesurfer/subjects/'
-fs_dir = os.path.join(data_dir, subject)
+fs_dir = os.path.join(anat_dir, subject)
 os.makedirs(prep_base_dir, exist_ok=True)
 
 # Parameters
 resample_fs = 500
 notch_freqs = [60, 120, 180, 240]
-ref_types = ['bip']
+ref_types = ['avg']
 
 # Load data
 
@@ -42,19 +41,20 @@ for session in sessions:
     nwb_pattern = os.path.join(raw_dir, f'sub-{subject}_ses-implant0*_task-TMR_acq-{session}_run-*.0_ieeg.nwb')
     nwb_files = glob.glob(nwb_pattern)
 
-    if not nwb_files:
-        print(f"No NWB file found for session {session}")
-        print(f" Looking for: {nwb_pattern}")
-        print(f" Files in directory: {os.listdir(raw_dir)}")
-        continue
-
     nwb_file = nwb_files[0]
     prep_dir = os.path.join(prep_base_dir, subject, session)
     os.makedirs(prep_dir, exist_ok=True)
 
     # Read NWB
-    io = NWBHDF5IO(nwb_files, mode='r', load_namespaces=True)
-    nwb = io.read()
+    if nwb_file:
+        nwb_file = nwb_files[0]
+        io = NWBHDF5IO(nwb_file, mode='r', load_namespaces=True)
+        nwb = io.read()
+    else:
+        print(f"No NWB file found for session {session}")
+        print(f" Looking for: {nwb_pattern}")
+        print(f" Files in directory: {os.listdir(raw_dir)}")
+        continue
 
     # Get info
     nwbInfo = inspectNwb(nwb)
@@ -68,7 +68,7 @@ for session in sessions:
         ecog = nwb2mne(ecogContainer, preload=False)
 
         # Get coordinates of each electrode that has
-        ielvis_df = read_ielvis(sub_fsdir)
+        ielvis_df = read_ielvis(fs_dir)
         ch_coords = {}
         nan_array = np.empty((3,)) * np.nan
         for thisChn in ecog.ch_names:
@@ -83,7 +83,7 @@ for session in sessions:
 
         # Create `montage` data structure as required by MNE
         montage = mne.channels.make_dig_montage(ch_pos=ch_coords, coord_frame='mri')
-        montage.add_estimated_fiducials(pat, fs_dir)
+        montage.add_estimated_fiducials(subject, anat_dir)
         ecog.set_montage(montage)
 
     # Get the current sampling rate. Important for later
@@ -107,7 +107,8 @@ for session in sessions:
     io.close()
 
     # Start preprocessing
-    preproc_filename = '{:s}/{:s}'.format(prep_dir, nwb_file.replace('.nwb', '_prep.fif'))
+    # preproc_filename = '{:s}/{:s}'.format(prep_dir, nwb_file.replace('.nwb', '_prep.fif'))
+    preproc_filename = os.path.join(prep_dir, f'{nwb_pattern}_prep_ieeg.fif')
 
     if not os.path.exists(preproc_filename):
 
@@ -117,7 +118,7 @@ for session in sessions:
         ecogPreproc = ecog.resample(resample_fs).notch_filter(notch_freqs, notch_widths=2)
 
         # Display the raw traces and mark bad channels
-        nbadOrig = ecogPreproc.info['bad']
+        nbadOrig = ecogPreproc.info['bads']
         fig = ecogPreproc.plot(show=True, block=True, remove_dc=True, duration=15.0, n_channels=16)
 
         # Save the current state of the data in the MNE format
@@ -126,7 +127,7 @@ for session in sessions:
                          fmt='single', overwrite=True)
 
     else:
-        ecogPreproc = mne.io.read_raw(preproc_filename)
+        ecogPreproc = mne.io.read_raw(preproc_filename, preload=True)
 
     for ref in ref_types:
 
@@ -135,8 +136,9 @@ for session in sessions:
         print('#' * 50)
 
         # What the preprocessed filename for this reference type should be
-        preprocRerefFname = '{:s}/{:s}'.format(prep_dir,
-                                               nwb_file.replace('.nwb', '_prep_ref_{:s}.fif'.format(ref)))
+        # preprocRerefFname = '{:s}/{:s}'.format(prep_dir,
+        #                                        nwb_file.replace('.nwb', '_prep_ref_{:s}.fif'.format(ref)))
+        preprocRerefFname = os.path.join(prep_dir, f'{nwb_pattern}_prep_ref_ieeg.fif')
 
         # Check if the preprocessed file already exists so you don't have to redo rereferncing functions
         if os.path.isfile(preprocRerefFname):
