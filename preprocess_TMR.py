@@ -3,6 +3,9 @@
 Max's movie preprocessing scripts (@maxne)
 Adapted for minimal preprocessing of TMR data by Sarah
 
+TO DO:
+- Align TTL pulses
+
 """
 
 import os, sys
@@ -107,8 +110,7 @@ for session in sessions:
     io.close()
 
     # Start preprocessing
-    # preproc_filename = '{:s}/{:s}'.format(prep_dir, nwb_file.replace('.nwb', '_prep.fif'))
-    preproc_filename = os.path.join(prep_dir, f'{nwb_pattern}_prep_ieeg.fif')
+    preproc_filename = os.path.join(prep_dir, f'sub-{subject}_ses-implant01_task-TMR_acq-{session}_run-01_ieeg_prep.fif')
 
     if not os.path.exists(preproc_filename):
 
@@ -136,9 +138,7 @@ for session in sessions:
         print('#' * 50)
 
         # What the preprocessed filename for this reference type should be
-        # preprocRerefFname = '{:s}/{:s}'.format(prep_dir,
-        #                                        nwb_file.replace('.nwb', '_prep_ref_{:s}.fif'.format(ref)))
-        preprocRerefFname = os.path.join(prep_dir, f'{nwb_pattern}_prep_ref_ieeg.fif')
+        preprocRerefFname = os.path.join(prep_dir, f'sub-{subject}_ses-implant01_task-TMR_acq-{session}_run-01_ieeg_prep_ref_{ref}.fif')
 
         # Check if the preprocessed file already exists so you don't have to redo rereferncing functions
         if os.path.isfile(preprocRerefFname):
